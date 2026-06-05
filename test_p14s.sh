@@ -14,17 +14,17 @@ echo "=========================================="
 echo ""
 
 # Couleurs
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+GREEN='[0;32m'
+RED='[0;31m'
+YELLOW='[1;33m'
+NC='[0m' # No Color
 
 # ============================================
 # 1. INSTALLATION DES PACKAGES
 # ============================================
-echo "[1/9] Installation des packages necessaires..."
+echo "[1/10] Installation des packages necessaires..."
 
-PACKAGES="stress-ng smartmontools lm-sensors upower"
+PACKAGES="stress-ng smartmontools lm-sensors upower dmidecode"
 
 for pkg in $PACKAGES; do
     if ! dpkg -l | grep -q "^ii  $pkg "; then
@@ -40,7 +40,7 @@ echo ""
 # ============================================
 # 2. BATTERIE
 # ============================================
-echo "[2/9] Test batterie..."
+echo "[2/10] Test batterie..."
 
 if command -v upower >/dev/null 2>&1; then
     BATTERY_PATH=$(upower -e | grep -i battery | head -n 1)
@@ -73,7 +73,7 @@ echo ""
 # ============================================
 # 3. SSD / NVMe
 # ============================================
-echo "[3/9] Test SSD..."
+echo "[3/10] Test SSD..."
 
 # Detection du disque
 DISK=$(lsblk -d -o NAME,TYPE | grep nvme | awk '{print $1}' | head -n 1)
@@ -117,7 +117,7 @@ echo ""
 # ============================================
 # 4. CPU & RAM
 # ============================================
-echo "[4/9] Info CPU & RAM..."
+echo "[4/10] Info CPU & RAM..."
 
 echo "  CPU: $(grep 'model name' /proc/cpuinfo | head -n 1 | cut -d':' -f2 | xargs)"
 echo "  Nombre de coeurs: $(nproc)"
@@ -127,9 +127,59 @@ echo "  RAM disponible: $(free -h | grep Mem | awk '{print $7}')"
 echo ""
 
 # ============================================
-# 5. STRESS TEST CPU (5 minutes)
+# 5. RAM - CONFIGURATION DETAILLEE (dmidecode)
 # ============================================
-echo "[5/9] Stress test CPU (5 minutes)..."
+echo "[5/10] Configuration RAM detaillee..."
+
+if command -v dmidecode >/dev/null 2>&1; then
+    dmidecode -t memory > /tmp/ram_info.txt 2>/dev/null || true
+
+    echo "  Detail des barrettes:"
+
+    # Compte le nombre de slots/banques memoire
+    SLOT_COUNT=$(grep -c "Memory Device" /tmp/ram_info.txt || echo "0")
+    echo "  Nombre de devices memoire detectes: $SLOT_COUNT"
+    echo ""
+
+    # Extraction des infos pour chaque device
+    grep -A 15 "Memory Device" /tmp/ram_info.txt | grep -E "(Size:|Form Factor:|Locator:|Type:|Speed:)" | while read line; do
+        echo "    $line"
+    done
+
+    echo ""
+
+    # Analyse specifique
+    SODIMM_COUNT=$(grep -c "Form Factor: SODIMM" /tmp/ram_info.txt || echo "0")
+    SOLDERED_COUNT=$(grep -c "Form Factor: Row Of Chips" /tmp/ram_info.txt || echo "0")
+
+    echo "  Slots SODIMM (remplacables): $SODIMM_COUNT"
+    echo "  Memoire soudée (non remplacable): $SOLDERED_COUNT"
+
+    # Detection de la config probable
+    if [ "$SODIMM_COUNT" -eq 1 ] && [ "$SOLDERED_COUNT" -eq 1 ]; then
+        echo ""
+        echo -e "  ${GREEN}✓ Config probable: 8Go soudée + 8Go slot = 16Go total${NC}"
+        echo -e "  ${GREEN}✓ Upgrade possible: remplacer le slot par 16Go ou 32Go${NC}"
+    elif [ "$SODIMM_COUNT" -eq 2 ]; then
+        echo ""
+        echo -e "  ${GREEN}✓ 2 slots SODIMM = upgrade facile${NC}"
+    elif [ "$SOLDERED_COUNT" -eq 1 ] && [ "$SODIMM_COUNT" -eq 0 ]; then
+        echo ""
+        echo -e "  ${YELLOW}⚠ RAM entierement soudée - pas d'upgrade possible${NC}"
+    fi
+
+    echo ""
+    echo "  Fichier complet: /tmp/ram_info.txt"
+else
+    echo "  dmidecode non disponible"
+fi
+
+echo ""
+
+# ============================================
+# 6. STRESS TEST CPU (5 minutes)
+# ============================================
+echo "[6/10] Stress test CPU (5 minutes)..."
 echo "  Lancement de stress-ng --cpu 8 --timeout 300s"
 echo "  Ne ferme pas ce terminal !"
 echo ""
@@ -149,9 +199,9 @@ fi
 echo ""
 
 # ============================================
-# 6. TEMPERATURES
+# 7. TEMPERATURES
 # ============================================
-echo "[6/9] Temperatures..."
+echo "[7/10] Temperatures..."
 
 if command -v sensors >/dev/null 2>&1; then
     sensors > /tmp/sensors_info.txt 2>/dev/null || true
@@ -180,9 +230,9 @@ fi
 echo ""
 
 # ============================================
-# 7. ECRAN
+# 8. ECRAN
 # ============================================
-echo "[7/9] Info ecran..."
+echo "[8/10] Info ecran..."
 
 # Resolution
 RESOLUTION=$(xrandr 2>/dev/null | grep '*' | awk '{print $1}' | head -n 1 || echo "N/A")
@@ -206,9 +256,9 @@ echo "  (Verifie visuellement: dead pixels, backlight bleed, angles de vue)"
 echo ""
 
 # ============================================
-# 8. PERIPHERIQUES
+# 9. PERIPHERIQUES
 # ============================================
-echo "[8/9] Peripheriques detectes..."
+echo "[9/10] Peripheriques detectes..."
 
 # USB
 echo "  Ports USB:"
@@ -233,7 +283,7 @@ fi
 echo ""
 
 # ============================================
-# 9. RESUME
+# 10. RESUME
 # ============================================
 echo "=========================================="
 echo "  RESUME DES TESTS"
@@ -245,6 +295,7 @@ echo "  - /tmp/battery_info.txt"
 echo "  - /tmp/smart_info.txt"
 echo "  - /tmp/stress_result.txt"
 echo "  - /tmp/sensors_info.txt"
+echo "  - /tmp/ram_info.txt"
 echo ""
 
 echo "Verifications manuelles a faire:"
