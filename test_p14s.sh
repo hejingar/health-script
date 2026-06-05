@@ -46,7 +46,7 @@ if command -v upower >/dev/null 2>&1; then
     BATTERY_PATH=$(upower -e | grep -i battery | head -n 1)
     if [ -n "$BATTERY_PATH" ]; then
         upower -i $BATTERY_PATH > /tmp/battery_info.txt
-        CAPACITY=$(grep "percentage:" /tmp/battery_info.txt | awk '{print $2}' | tr -d '%')
+        CAPACITY=$(grep "capacity:" /tmp/battery_info.txt | awk '{print $2}' | tr -d '%')
         ENERGY_FULL=$(grep "energy-full:" /tmp/battery_info.txt | awk '{print $2}' | tr -d 'Wh')
         ENERGY_DESIGN=$(grep "energy-full-design:" /tmp/battery_info.txt | awk '{print $2}' | tr -d 'Wh')
 
